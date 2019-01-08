@@ -12,9 +12,13 @@ Requirements
 ------------
 
   * Python (2.7+ and 3.3+ should work)
-  * python-dateutil
-  * PyYAML
-  * pyOpenSSL (0.15.1+)
+  * cryptography
+  
+Optional packages
+-----------------
+
+  * PyYAML (when using config files in YAML format)
+  * dnspython (required for the dns.nsupdate mode)
 
 Initial Setup
 -------------
@@ -22,7 +26,7 @@ Initial Setup
 First, you need to provide two key files for the ACME protocol:
   * The account key is expected at `/etc/acme/account.key`
   * The domain key is expected at `/etc/acme/server.key` (Note: only one domain key is required for all domains used in the same instance of acertmgr)
-  * If you are missing these keys, you can create them using `openssl genrsa 4096 > /etc/acme/account.key` and `openssl genrsa 4096 > /etc/acme/server.key` respectively
+  * If you are missing these keys, they will be created for you or you can create them using `openssl genrsa 4096 > /etc/acme/account.key` and `openssl genrsa 4096 > /etc/acme/server.key` respectively
   * Do not forget to set proper permissions of the keys using `chmod 0400 /etc/acme/*.key`
 
 Secondly, you should download the letsencrypt CA certificate:
@@ -43,9 +47,9 @@ Configuration
 
 The main configuration is read from `/etc/acme/acme.conf`, domains for which certificates should be obtained/renewed should be configured in `/etc/acme/domains.d/*.conf`.
 
-All configuration files use yaml syntax.
+All configuration files can use yaml (requires PyYAML) or json syntax.
 
-  * Example global configuration file:
+  * Example global configuration file (YAML syntax):
 ```yaml
 ---
 
@@ -68,7 +72,7 @@ defaults:
 
 ```
 
-  * Example domain configuration file:
+  * Example domain configuration file (YAML syntax):
 
 ```yaml
 ---
@@ -109,6 +113,96 @@ www.example.com example.com:
   perm: '400'
   action: '/etc/init.d/apache2 reload'
   format: key
+
+# this will create a certificate with subject alternative names
+# using a different challenge handler for one domain
+mail.example.com smtp.example.com webmail.example.net:
+- mode: dns.nsupdate
+  nsupdate_server: ns1.example.com
+  nsupdate_keyname: mail
+  nsupdate_keyvalue: Test1234512359==
+- domain: webmail.example.net
+  mode: dns.nsupdate
+  nsupdate_server: ns1.example.net
+  nsupdate_keyname: webmail
+  nsupdate_keyvalue: Test1234512359==
+- path: /etc/postfix/ssl/mail.key
+  user: root
+  group: root
+  perm: '400'
+  format: key
+  action: '/etc/init.d/postfix reload'
+- path: /etc/postfix/ssl/mail.crt
+  user: root
+  group: root
+  perm: '400'
+  format: crt,ca
+  action: '/etc/init.d/postfix reload'
+
+```
+
+ * Example global configuration file (JSON syntax):
+```json
+---
+{
+"mode": "standalone",
+"port": "80",
+
+"account_key": "/etc/acme/acc.key",
+"server_key": "/etc/acme/serv.key",
+
+"webdir": "/var/www/acme-challenge/",
+"authority": "https://acme-v01.api.letsencrypt.org",
+
+"defaults": 
+  { 
+  "cafile": "/etc/acme/lets-encrypt-x3-cross-signed.pem"
+  }
+}
+```
+
+  * Example domain configuration file (JSON syntax):
+
+```json
+---
+{
+"mail.example.com": [
+{ "path": "/etc/postfix/ssl/mail.key",
+  "user": "root",
+  "group": "root",
+  "perm": "400",
+  "format": "key",
+  "action": "/etc/init.d/postfix reload" },
+{ "path": "/etc/postfix/ssl/mail.crt",
+  "user": "root",
+  "group": "root",
+  "perm": "400",
+  "format": "crt,ca",
+  "action": "/etc/init.d/postfix reload" }
+],
+"jabber.example.com": [
+{ "path": "/etc/ejabberd/server.pem",
+  "user": "jabber",
+  "group": "jabber",
+  "perm": "400",
+  "format": "key,crt,ca",
+  "action": "/etc/init.d/ejabberd restart" }
+],
+"www.example.com example.com": [
+{ "path": "/var/www/ssl/cert.pem",
+  "user": "apache",
+  "group": "apache",
+  "perm": "400",
+  "action": "/etc/init.d/apache2 reload",
+  "format": "crt,ca" },
+{ "path": "/var/www/ssl/key.pem",
+  "user": "apache",
+  "group": "apache",
+  "perm": "400",
+  "action": "/etc/init.d/apache2 reload",
+  "format": "key" }
+]
+}
 ```
 
 Security
