@@ -205,10 +205,12 @@ if __name__ == "__main__":
                 import json
 
                 config = json.load(config_fd)
-            except json.JSONDecodeError:
+            except ValueError:
                 import yaml
 
+                config_fd.seek(0)
                 config = yaml.load(config_fd)
+
     if 'defaults' not in config:
         config['defaults'] = {}
     if 'server_key' not in config:
@@ -226,9 +228,10 @@ if __name__ == "__main__":
 
                     for entry in json.load(config_fd).items():
                         config['domains'].append(entry)
-                except json.JSONDecodeError:
+                except ValueError:
                     import yaml
 
+                    config_fd.seek(0)
                     for entry in yaml.load(config_fd).items():
                         config['domains'].append(entry)
 
